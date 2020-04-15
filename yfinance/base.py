@@ -27,6 +27,11 @@ import requests as _requests
 import pandas as _pd
 import numpy as _np
 
+try:
+    from urllib.parse import quote as urlencode
+except ImportError:
+    from urllib import quote as urlencode
+
 from . import utils
 
 # import json as _json
@@ -49,6 +54,7 @@ class TickerBase():
         self._recommendations = None
         self._major_holders = None
         self._institutional_holders = None
+        self._isin = None
 
         self._calendar = None
         self._expirations = {}
@@ -293,6 +299,18 @@ class TickerBase():
         url = '%s/%s' % (self._scrape_url, self.ticker)
         data = utils.get_json(url, proxy)
 
+        # holders
+        url = "{}/{}/holders".format(self._scrape_url, self.ticker)
+        holders = _pd.read_html(url)
+        self._major_holders = holders[0]
+        self._institutional_holders = holders[1]
+        if 'Date Reported' in self._institutional_holders:
+            self._institutional_holders['Date Reported'] = _pd.to_datetime(
+                self._institutional_holders['Date Reported'])
+        if '% Out' in self._institutional_holders:
+            self._institutional_holders['% Out'] = self._institutional_holders[
+                '% Out'].str.replace('%', '').astype(float)/100
+
         # sustainability
         d = {}
         if isinstance(data.get('esgScores'), dict):
@@ -483,3 +501,44 @@ class TickerBase():
             self.history(period="max", proxy=proxy)
         actions = self._history[["Dividends", "Stock Splits"]]
         return actions[actions != 0].dropna(how='all').fillna(0)
+
+    def get_isin(self, proxy=None):
+        # *** experimental ***
+        if self._isin is not None:
+            return self._isin
+
+        ticker = self.ticker.upper()
+
+        if "-" in ticker or "^" in ticker:
+            self._isin = '-'
+            return self._isin
+
+        # setup proxy in requests format
+        if proxy is not None:
+            if isinstance(proxy, dict) and "https" in proxy:
+                proxy = proxy["https"]
+            proxy = {"https": proxy}
+
+        q = ticker
+        self.get_info(proxy=proxy)
+        if "shortName" in self._info:
+            q = self._info['shortName']
+
+        url = 'https://markets.businessinsider.com/ajax/' \
+              'SearchController_Suggest?max_results=25&query=%s' \
+            % urlencode(q)
+        data = _requests.get(url=url, proxies=proxy).text
+
+        search_str = '"{}|'.format(ticker)
+        if search_str not in data:
+            if q.lower() in data.lower():
+                search_str = '"|'
+                if search_str not in data:
+                    self._isin = '-'
+                    return self._isin
+            else:
+                self._isin = '-'
+                return self._isin
+
+        self._isin = data.split(search_str)[1].split('"')[0].split('|')[0]
+        return self._isin
