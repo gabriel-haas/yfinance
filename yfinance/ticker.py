@@ -110,12 +110,20 @@ class Ticker(TickerBase):
         return self.get_isin()
 
     @property
+    def raw_quote_summary(self):
+        return self.get_raw_quote_summary()
+
+    @property
     def major_holders(self):
         return self.get_major_holders()
 
     @property
     def institutional_holders(self):
         return self.get_institutional_holders()
+
+    @property
+    def mutual_holders(self):
+        return self.get_mutual_holders()
 
     @property
     def dividends(self):

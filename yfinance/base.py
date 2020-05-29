@@ -54,7 +54,10 @@ class TickerBase():
         self._recommendations = None
         self._major_holders = None
         self._institutional_holders = None
+        self._mutual_holders = None
         self._isin = None
+
+        self._raw_quote_summary = None
 
         self._calendar = None
         self._expirations = {}
@@ -277,6 +280,10 @@ class TickerBase():
 
         url = '%s/%s/holders' % (self._scrape_url, self.ticker)
         holders = utils.get_json(url, proxy)
+        
+        #print(holders)
+        self._raw_quote_summary = holders
+        #print(data)
 
         # holders
         item = 'institutionOwnership'
@@ -284,7 +291,9 @@ class TickerBase():
             self._institutional_holders = holders.get(item)['ownershipList']
         item = 'fundOwnership'
         if isinstance(holders.get(item), dict):
-            self._major_holders = holders.get(item)
+            self._mutual_holders = holders.get(item)['ownershipList']
+        #self._mutual_holders = None
+
 
         #holders = _pd.read_html(url + '/holders')
         #print(holders)
@@ -298,6 +307,7 @@ class TickerBase():
         # get info and sustainability
         url = '%s/%s' % (self._scrape_url, self.ticker)
         data = utils.get_json(url, proxy)
+
 
         # holders
         url = "{}/{}/holders".format(self._scrape_url, self.ticker)
@@ -327,6 +337,8 @@ class TickerBase():
 
                 self._sustainability = s[~s.index.isin(
                     ['maxAge', 'ratingYear', 'ratingMonth'])]
+    
+
 
         # info (be nice to python 2)
         self._info = {}
@@ -438,6 +450,21 @@ class TickerBase():
         if as_dict:
             return data.to_dict()
         return data
+
+    def get_mutual_holders(self, proxy=None, as_dict=False, *args, **kwargs):
+        self._get_fundamentals(proxy)
+        data = self._mutual_holders
+        if as_dict:
+            return data.to_dict()
+        return data
+
+    def get_raw_quote_summary(self, proxy=None, as_dict=False, *args, **kwargs):
+        self._get_fundamentals(proxy)
+        data = self._raw_quote_summary
+        if as_dict:
+            return data.to_dict()
+        return data
+
 
     def get_info(self, proxy=None, as_dict=False, *args, **kwargs):
         self._get_fundamentals(proxy)
